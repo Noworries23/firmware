@@ -7,6 +7,7 @@
 #include "mesh-pb-constants.h"
 #include "modules/NodeInfoModule.h"
 #include "modules/RoutingModule.h"
+#include "StatsCollector.h"
 
 // ReliableRouter::ReliableRouter() {}
 
@@ -16,6 +17,9 @@
  */
 ErrorCode ReliableRouter::send(meshtastic_MeshPacket *p)
 {
+    if (isFromUs(p)) {
+        statsCollector.recordMessageSent();
+    }
     if (p->want_ack) {
         // If someone asks for acks on broadcast, we need the hop limit to be at least one, so that first node that receives our
         // message will rebroadcast.  But asking for hop_limit 0 in that context means the client app has no preference on hop
@@ -156,8 +160,10 @@ void ReliableRouter::sniffReceived(const meshtastic_MeshPacket *p, const meshtas
             !(isFromUs(p) && p->transport_mechanism == meshtastic_MeshPacket_TransportMechanism_TRANSPORT_MQTT)) {
             LOG_DEBUG("Received a %s for 0x%x, stopping retransmissions", ackId ? "ACK" : "NAK", ackId);
             if (ackId) {
+                statsCollector.recordAckReceived();
                 stopRetransmission(p->to, ackId);
             } else {
+                statsCollector.recordNakReceived();
                 stopRetransmission(p->to, nakId);
             }
         }

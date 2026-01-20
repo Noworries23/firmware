@@ -22,6 +22,7 @@
 #include "mesh-pb-constants.h"
 #include "meshUtils.h"
 #include "modules/NeighborInfoModule.h"
+#include "StatsCollector.h"
 #include <ErriezCRC32.h>
 #include <algorithm>
 #include <pb_decode.h>
@@ -1660,6 +1661,7 @@ void NodeDB::updatePosition(uint32_t nodeId, const meshtastic_Position &p, RxSou
             info->position.time = tmp_time;
     }
     info->has_position = true;
+    statsCollector.updateMaxDistance();
     updateGUIforNode = info;
     notifyObservers(true); // Force an update whether or not our node counts have changed
 }
@@ -1800,6 +1802,9 @@ bool NodeDB::updateUser(uint32_t nodeId, meshtastic_User &p, uint8_t channelInde
     bool changed = memcmp(&info->user, &lite, sizeof(info->user)) || (info->channel != channelIndex);
 
     info->user = lite;
+    if (nodeId != getNodeNum()) {
+        statsCollector.setLastFriendName(info->user.long_name);
+    }
     if (info->user.public_key.size == 32) {
         printBytes("Saved Pubkey: ", info->user.public_key.bytes, 32);
     }
