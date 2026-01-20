@@ -38,6 +38,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "draw/NodeListRenderer.h"
 #include "draw/NotificationRenderer.h"
 #include "draw/UIRenderer.h"
+#include "draw/BeginnerRenderer.h"
 #include "modules/CannedMessageModule.h"
 
 #if !MESHTASTIC_EXCLUDE_GPS
@@ -53,6 +54,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "gps/RTC.h"
 #include "graphics/ScreenFonts.h"
 #include "graphics/SharedUIDisplay.h"
+#include "graphics/Companion.h"
 #include "graphics/emotes.h"
 #include "graphics/images.h"
 #include "input/TouchScreenImpl1.h"
@@ -1018,120 +1020,25 @@ void Screen::setFrames(FrameFocus focus)
 
     graphics::UIRenderer::rebuildFavoritedNodes();
 
-    LOG_DEBUG("Show standard frames");
+    LOG_DEBUG("Show standard frames (Beginner Mode)");
     showingNormalScreen = true;
 
     indicatorIcons.clear();
 
     size_t numframes = 0;
 
-    // If we have a critical fault, show it first
+    // Even in Beginner Mode, we show critical faults first
     fsi.positions.fault = numframes;
     if (error_code) {
         normalFrames[numframes++] = NotificationRenderer::drawCriticalFaultFrame;
         indicatorIcons.push_back(icon_error);
-        focus = FOCUS_FAULT; // Change our "focus" parameter, to ensure we show the fault frame
+        focus = FOCUS_FAULT;
     }
 
-#if defined(DISPLAY_CLOCK_FRAME)
-    if (!hiddenFrames.clock) {
-        fsi.positions.clock = numframes;
-#if defined(M5STACK_UNITC6L)
-        normalFrames[numframes++] = graphics::ClockRenderer::drawAnalogClockFrame;
-#else
-        normalFrames[numframes++] = uiconfig.is_clockface_analog ? graphics::ClockRenderer::drawAnalogClockFrame
-                                                                 : graphics::ClockRenderer::drawDigitalClockFrame;
-#endif
-        indicatorIcons.push_back(digital_icon_clock);
-    }
-#endif
-
-    if (!hiddenFrames.home) {
-        fsi.positions.home = numframes;
-        normalFrames[numframes++] = graphics::UIRenderer::drawDeviceFocused;
-        indicatorIcons.push_back(icon_home);
-    }
-
-    fsi.positions.textMessage = numframes;
-    normalFrames[numframes++] = graphics::MessageRenderer::drawTextMessageFrame;
-    indicatorIcons.push_back(icon_mail);
-
-#ifndef USE_EINK
-    if (!hiddenFrames.nodelist_nodes) {
-        fsi.positions.nodelist_nodes = numframes;
-        normalFrames[numframes++] = graphics::NodeListRenderer::drawDynamicListScreen_Nodes;
-        indicatorIcons.push_back(icon_nodes);
-    }
-    if (!hiddenFrames.nodelist_location) {
-        fsi.positions.nodelist_location = numframes;
-        normalFrames[numframes++] = graphics::NodeListRenderer::drawDynamicListScreen_Location;
-        indicatorIcons.push_back(icon_list);
-    }
-#endif
-
-// Show detailed node views only on E-Ink builds
-#ifdef USE_EINK
-    if (!hiddenFrames.nodelist_lastheard) {
-        fsi.positions.nodelist_lastheard = numframes;
-        normalFrames[numframes++] = graphics::NodeListRenderer::drawLastHeardScreen;
-        indicatorIcons.push_back(icon_nodes);
-    }
-    if (!hiddenFrames.nodelist_hopsignal) {
-        fsi.positions.nodelist_hopsignal = numframes;
-        normalFrames[numframes++] = graphics::NodeListRenderer::drawHopSignalScreen;
-        indicatorIcons.push_back(icon_signal);
-    }
-    if (!hiddenFrames.nodelist_distance) {
-        fsi.positions.nodelist_distance = numframes;
-        normalFrames[numframes++] = graphics::NodeListRenderer::drawDistanceScreen;
-        indicatorIcons.push_back(icon_distance);
-    }
-#endif
-#if HAS_GPS
-#ifdef USE_EINK
-    if (!hiddenFrames.nodelist_bearings) {
-        fsi.positions.nodelist_bearings = numframes;
-        normalFrames[numframes++] = graphics::NodeListRenderer::drawNodeListWithCompasses;
-        indicatorIcons.push_back(icon_list);
-    }
-#endif
-    if (!hiddenFrames.gps) {
-        fsi.positions.gps = numframes;
-        normalFrames[numframes++] = graphics::UIRenderer::drawCompassAndLocationScreen;
-        indicatorIcons.push_back(icon_compass);
-    }
-#endif
-    if (RadioLibInterface::instance && !hiddenFrames.lora) {
-        fsi.positions.lora = numframes;
-        normalFrames[numframes++] = graphics::DebugRenderer::drawLoRaFocused;
-        indicatorIcons.push_back(icon_radio);
-    }
-    if (!hiddenFrames.system) {
-        fsi.positions.system = numframes;
-        normalFrames[numframes++] = graphics::DebugRenderer::drawSystemScreen;
-        indicatorIcons.push_back(icon_system);
-    }
-#if !defined(DISPLAY_CLOCK_FRAME)
-    if (!hiddenFrames.clock) {
-        fsi.positions.clock = numframes;
-        normalFrames[numframes++] = uiconfig.is_clockface_analog ? graphics::ClockRenderer::drawAnalogClockFrame
-                                                                 : graphics::ClockRenderer::drawDigitalClockFrame;
-        indicatorIcons.push_back(digital_icon_clock);
-    }
-#endif
-    if (!hiddenFrames.chirpy) {
-        fsi.positions.chirpy = numframes;
-        normalFrames[numframes++] = graphics::DebugRenderer::drawChirpy;
-        indicatorIcons.push_back(chirpy_small);
-    }
-
-#if HAS_WIFI && !defined(ARCH_PORTDUINO)
-    if (!hiddenFrames.wifi && isWifiAvailable()) {
-        fsi.positions.wifi = numframes;
-        normalFrames[numframes++] = graphics::DebugRenderer::drawDebugInfoWiFiTrampoline;
-        indicatorIcons.push_back(icon_wifi);
-    }
-#endif
+    // Beginner Mode main frame
+    fsi.positions.home = numframes;
+    normalFrames[numframes++] = graphics::BeginnerRenderer::drawBeginnerFrame;
+    indicatorIcons.push_back(icon_home);
 
     // Beware of what changes you make in this code!
     // We pass numframes into GetMeshModulesWithUIFrames() which is highly important!
@@ -1435,6 +1342,11 @@ int Screen::handleStatusUpdate(const meshtastic::Status *arg)
 {
     switch (arg->getStatusType()) {
     case STATUS_TYPE_NODE:
+        if (nodeStatus->getLastNumTotal() < nodeStatus->getNumTotal()) {
+            // New node found!
+            graphics::Companion::getInstance().setMood(graphics::CompanionMood::EXCITED, 5000);
+            screen->showSimpleBanner("New Friend!", 3000);
+        }
         if (showingNormalScreen && nodeStatus->getLastNumTotal() != nodeStatus->getNumTotal()) {
             setFrames(FOCUS_PRESERVE); // Regen the list of screen frames (returning to same frame, if possible)
         }
@@ -1467,6 +1379,8 @@ int Screen::handleTextMessage(const meshtastic_MeshPacket *packet)
             setFrames(FOCUS_PRESERVE); // Stay on same frame, silently update frame list
         } else {
             // Incoming message
+            graphics::Companion::getInstance().setMood(graphics::CompanionMood::HAPPY, 5000);
+
             devicestate.has_rx_text_message = true; // Needed to include the message frame
             hasUnreadMessage = true;                // Enables mail icon in the header
             setFrames(FOCUS_PRESERVE);              // Refresh frame list without switching view (no-op during text_input)

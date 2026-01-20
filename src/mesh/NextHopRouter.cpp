@@ -5,6 +5,7 @@
 #include "modules/TraceRouteModule.h"
 #endif
 #include "NodeDB.h"
+#include "StatsCollector.h"
 
 NextHopRouter::NextHopRouter() {}
 
@@ -152,6 +153,7 @@ bool NextHopRouter::perhapsRebroadcast(const meshtastic_MeshPacket *p)
                     } else {
                         NextHopRouter::send(tosend);
                     }
+                    statsCollector.recordRelay();
 
                     return true;
                 }

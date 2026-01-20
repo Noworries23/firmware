@@ -8,6 +8,7 @@
  */
 
 #include "graphics/draw/ClockRenderer.h"
+#include "graphics/draw/BeginnerRenderer.h"
 #include "graphics/draw/CompassRenderer.h"
 #include "graphics/draw/DebugRenderer.h"
 #include "graphics/draw/NodeListRenderer.h"
@@ -25,6 +26,7 @@ namespace graphics
 namespace DrawRenderers
 {
 // Re-export all renderer namespaces for convenience
+using namespace BeginnerRenderer;
 using namespace ClockRenderer;
 using namespace CompassRenderer;
 using namespace DebugRenderer;
